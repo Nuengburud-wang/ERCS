@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light only">
+<title>ER Crowding Score</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<style>
+/* ธีมน้ำเงิน-ขาว สว่าง สะอาดตา (ไม่เปลี่ยนตามโหมดมืดของเครื่อง) */
+:root{color-scheme:light;--bg:#F4F7FC;--ink:#0F1B2D;--mute:#5B6B80;--panel:#fff;--field:#F8FAFE;--line:#E2E8F2;
+--blue:#2563EB;--blue-d:#1D4ED8;--blue-l:#EAF1FF;--accent:#1D4ED8;
+--l0:#16A34A;--l1:#EAB308;--l2:#DB2777;--l3:#DC2626}
+*{box-sizing:border-box}
+html{background:var(--bg);min-height:100%}
+body{margin:0;min-height:100vh;color:var(--ink);font-family:'Noto Sans Thai',system-ui,sans-serif;line-height:1.6;
+background:var(--bg) no-repeat radial-gradient(1100px 360px at 50% -200px,#DCE8FF 0%,transparent 70%)}
+[hidden]{display:none!important}
+header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.6rem;padding:1rem 1.25rem .5rem;max-width:980px;margin:auto}
+h1{font-size:1.3rem;font-weight:700;margin:0;letter-spacing:-.01em;color:var(--ink);display:flex;align-items:center;gap:.55rem}
+h1::before{content:'+';width:1.75rem;height:1.75rem;border-radius:9px;flex:none;display:inline-flex;align-items:center;justify-content:center;
+ color:#fff;font-size:1.3rem;font-weight:700;line-height:1;background:linear-gradient(135deg,#3B82F6,#1D4ED8);box-shadow:0 4px 10px -4px rgba(37,99,235,.8)}
+h2{font-weight:700;font-size:1rem;margin:0 0 .75rem;color:var(--ink)}
+nav{display:flex;flex-wrap:wrap;gap:.3rem}
+nav button{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:.45rem 1rem;border-radius:999px;font:inherit;cursor:pointer}
+nav button[aria-selected=true],.btn{background:linear-gradient(135deg,var(--blue),var(--blue-d));color:#fff;border-color:var(--blue-d);font-weight:600}
+.who{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;font-size:.85rem;color:var(--mute)}
+.who b{color:var(--ink)}
+.link{white-space:nowrap;background:none;border:1px solid var(--line);border-radius:999px;padding:.25rem .75rem;font:inherit;font-size:.82rem;color:var(--accent);cursor:pointer}
+main{max-width:980px;margin:auto;padding:0 1.25rem 3rem}
+section{display:none}section.on{display:block}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:1.25rem;margin-top:1rem;box-shadow:0 1px 2px rgba(15,27,45,.04),0 10px 30px -18px rgba(29,78,216,.35)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #93B4FF;outline-offset:2px}
+input:focus,select:focus{border-color:var(--blue)!important;background:#fff}
+button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:.75rem}
+.f label{display:block;font-size:.9rem;color:var(--mute)}
+.step{display:flex;align-items:center;gap:.4rem;margin-top:.2rem}
+.step input{width:100%;font:inherit;font-size:1.2rem;text-align:center;padding:.45rem;border:1px solid var(--line);border-radius:8px;background:var(--field);color:var(--ink)}
+.step button{width:2.8rem;height:2.8rem;border-radius:10px;border:1px solid #CFDBF0;background:var(--blue-l);color:var(--blue-d);font-size:1.4rem;font-weight:600;cursor:pointer;flex:none;user-select:none;-webkit-user-select:none}
+.step button:active,.tile .tb button:active{transform:scale(.92)}
+.unit{font-size:.8rem;color:var(--mute);width:2.8rem;flex:none}
+.txt{width:100%;font:inherit;padding:.55rem;border:1px solid var(--line);border-radius:8px;background:var(--field);color:var(--ink)}
+.btn{border:1px solid var(--blue-d);border-radius:12px;padding:.75rem 1.4rem;font:inherit;font-weight:600;cursor:pointer;margin-top:1rem;box-shadow:0 6px 16px -8px rgba(37,99,235,.7)}
+.btn:hover{filter:brightness(1.06)}
+.btn.ghost{background:var(--panel);color:var(--accent);border-color:var(--line);box-shadow:none}
+.btn:disabled{opacity:.55;cursor:wait}
+.prev{display:flex;align-items:center;gap:1rem;margin-top:1rem}
+.chip{display:inline-block;padding:.15rem .8rem;border-radius:999px;color:var(--cf,#fff);font-weight:700;background:var(--c)}
+.l0{--c:var(--l0)}.l1{--c:var(--l1);--cf:#3B2F00}.l2{--c:var(--l2)}.l3{--c:var(--l3)}
+/* แถบสีสถานะ: เขียว ปกติ / เหลือง วิกฤต / ชมพู วิกฤตรุนแรง / แดง วิกฤตขั้นสุด */
+.band{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin-top:1rem;padding:.85rem 1.1rem;border-radius:14px;background:var(--c,#E2E8F2);color:var(--cf,#fff);font-weight:700;font-size:1.15rem;box-shadow:0 8px 22px -14px var(--c,#000)}
+.band small{font-weight:500;font-size:.85rem;opacity:.95}
+.band .bn{font-size:1.6rem;line-height:1}
+.gauge.l1 .gscore{color:#A16207}
+.band.none{--c:#E2E8F2;--cf:var(--mute)}
+.legend{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.5rem;font-size:.78rem;color:var(--mute)}
+.legend span{display:inline-flex;align-items:center;gap:.3rem}
+.legend i{width:.8rem;height:.8rem;border-radius:3px;background:var(--c)}
+.urgent{display:none;align-items:center;gap:.7rem;margin-top:.7rem;padding:.9rem 1.1rem;border-radius:14px;background:#B91C1C;color:#fff;font-weight:700;font-size:1.1rem;box-shadow:0 10px 26px -12px rgba(185,28,28,.8);animation:pulse 1.4s ease-in-out infinite}
+.urgent.on{display:flex}
+.urgent small{display:block;font-weight:500;font-size:.85rem;opacity:.92}
+.urgent .ic{font-size:1.6rem;line-height:1}
+@keyframes pulse{50%{box-shadow:0 0 0 8px rgba(185,28,28,.18),0 10px 26px -12px rgba(185,28,28,.8)}}
+@media (prefers-reduced-motion:reduce){.urgent{animation:none}}
+.big{font-size:2.6rem;font-weight:700;line-height:1;color:var(--c)}
+.gauge{max-width:340px;margin:auto;text-align:center}
+.gauge svg{width:100%;display:block}
+.gscore{font-size:3.4rem;font-weight:700;margin-top:-3.6rem;line-height:1;color:var(--c)}
+.advice{text-align:center;margin-top:.8rem}
+.stale{display:none;background:#FFF7E6;color:#7A4A00;padding:.4rem .8rem;border-radius:8px;margin-top:.8rem;text-align:center}
+.msg{margin-top:.8rem;padding:.6rem .9rem;border-radius:8px;display:none}
+.msg.ok{display:block;background:#EAF1FF;color:#173B8F;border:1px solid #C7D8FF}
+.msg.err{display:block;background:#FDECEA;color:#8A1C14;border:1px solid #F6C9C3}
+.warn{background:#FFF7E6;color:#7A4A00;padding:.6rem .9rem;border-radius:8px;margin-top:1rem;display:none}
+.heat{display:grid;grid-template-columns:2.2rem repeat(24,1fr);gap:2px;font-size:.65rem;color:var(--mute)}
+.heat div{aspect-ratio:1;border-radius:3px;display:flex;align-items:center;justify-content:center;min-width:0}
+.heat .lab{aspect-ratio:auto;justify-content:flex-start}
+.scroll{overflow-x:auto}.scroll>*{min-width:560px}
+.cfg{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:.7rem}
+.hint{display:block;color:var(--mute);font-size:.78rem}
+.nowbtn{border:1px solid var(--line);background:var(--panel);color:var(--accent);border-radius:8px;padding:0 .8rem;font:inherit;cursor:pointer;flex:none}
+table.rec{width:100%;border-collapse:collapse;font-size:.85rem}
+table.rec th,table.rec td{text-align:left;padding:.45rem .5rem;border-bottom:1px solid var(--line);vertical-align:top}
+table.rec th{color:var(--mute);font-weight:500;white-space:nowrap;background:#F3F6FC}
+table.rec td.n{text-align:right;white-space:nowrap}
+.quick{display:flex;flex-wrap:wrap;gap:.4rem;margin:.2rem 0 .4rem}
+.quick button{border:1px solid var(--line);background:var(--panel);color:var(--accent);border-radius:999px;padding:.3rem .9rem;font:inherit;font-size:.85rem;cursor:pointer}
+/* หน้าล็อกอิน */
+.auth{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.5rem}
+.auth .card{width:100%;max-width:400px;padding:2rem 1.8rem;text-align:left}
+.auth h1{text-align:center;font-size:1.6rem}
+.auth .sub{text-align:center;color:var(--mute);margin:.2rem 0 1.4rem;font-size:.9rem}
+.auth .f{margin-top:.8rem}
+.auth .btn{width:100%}
+.tri{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.7rem;margin-top:.3rem}
+@media (max-width:560px){.tri{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tile{aspect-ratio:1;border-radius:14px;background:var(--tc);color:var(--tf);display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:.7rem .5rem;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08),0 6px 18px -10px var(--tc)}
+.tile .tl{font-weight:700;font-size:1rem;letter-spacing:.02em}
+.tile input{width:100%;background:transparent;border:0;color:inherit;font:inherit;font-size:clamp(2rem,6vw,2.8rem);font-weight:700;text-align:center;padding:0;-moz-appearance:textfield}
+.tile input::-webkit-outer-spin-button,.tile input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.tile input:focus-visible{outline:2px dashed currentColor;outline-offset:2px;border-radius:6px}
+.tile .tb{display:flex;gap:.5rem}
+.tile .tb button{user-select:none;-webkit-user-select:none;width:2.6rem;height:2.6rem;border-radius:999px;border:1px solid currentColor;background:rgba(255,255,255,.18);color:inherit;font-size:1.3rem;line-height:1;cursor:pointer}
+.t-black{--tc:#1E1E1E;--tf:#fff}.t-red{--tc:#C62828;--tf:#fff}.t-yellow{--tc:#F5C518;--tf:#2B2200}.t-green{--tc:#2E7D32;--tf:#fff}
+.trisum{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.5rem;margin-top:.6rem;font-size:.9rem;color:var(--mute)}
+.mini{display:inline-flex;gap:.25rem;vertical-align:middle}
+.mini span{min-width:1.7rem;height:1.7rem;padding:0 .3rem;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;background:var(--tc);color:var(--tf)}
+.datewrap{position:relative;display:flex;gap:.4rem;align-items:stretch}
+.datebtn{flex:1;min-width:0;display:flex;align-items:center;gap:.5rem;cursor:pointer;text-align:left;font-weight:600;min-height:2.8rem;white-space:nowrap}
+.datebtn #shDateLbl{overflow:hidden;text-overflow:ellipsis;display:flex;flex-direction:column;line-height:1.25}
+.datebtn #shDateLbl small{font-size:.72rem;font-weight:500;color:var(--blue-d)}
+@media (max-width:640px){.datewrap{flex-wrap:wrap}.datewrap .nowbtn{order:5;flex-basis:100%;padding:.45rem}}
+.datebtn .ic{font-size:1.1rem}
+.dnav{width:2.8rem;flex:none;border:1px solid #CFDBF0;background:var(--blue-l);color:var(--blue-d);border-radius:10px;font-size:1.5rem;line-height:1;cursor:pointer}
+.dnav:disabled{opacity:.35;cursor:not-allowed}
+.cal{position:absolute;z-index:20;top:calc(100% + .4rem);left:0;width:min(330px,100%);background:#fff;border:1px solid var(--line);border-radius:16px;padding:.8rem;box-shadow:0 18px 40px -16px rgba(15,27,45,.35)}
+.cal .ch{display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;font-weight:700}
+.cal .ch .cb{display:flex;gap:.25rem}
+.cal .ch button{width:2.2rem;height:2.4rem;border:0;border-radius:10px;background:var(--blue-l);color:var(--blue-d);font-size:1.3rem;cursor:pointer}
+.cal .ch button:disabled{opacity:.3;cursor:not-allowed}
+.cal .cg{display:grid;grid-template-columns:repeat(7,1fr);gap:.25rem;text-align:center}
+.cal .wd{font-size:.75rem;color:var(--mute);padding:.2rem 0}
+.cal .d{aspect-ratio:1;border:0;border-radius:10px;background:none;font:inherit;font-size:.95rem;color:var(--ink);cursor:pointer}
+.cal .d:hover:not(:disabled){background:var(--blue-l)}
+.cal .d.today{box-shadow:inset 0 0 0 1.5px var(--blue)}
+.cal .d.sel{background:linear-gradient(135deg,var(--blue),var(--blue-d));color:#fff;font-weight:700}
+.cal .d:disabled{color:#C3CCDA;cursor:not-allowed}
+.cal .cf{display:flex;gap:.4rem;margin-top:.6rem}
+.cal .cf button{flex:1;border:1px solid var(--line);background:var(--field);border-radius:999px;padding:.35rem 0;font:inherit;font-size:.85rem;color:var(--blue-d);cursor:pointer}
+.cal .note{font-size:.75rem;color:var(--mute);margin-top:.4rem;text-align:center}
+.shifts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem;margin-top:.2rem}
+.shift{border:1.5px solid var(--line);background:var(--field);color:var(--ink);border-radius:12px;padding:.55rem .4rem;font:inherit;cursor:pointer;text-align:center;line-height:1.3}
+.shift b{display:block;font-size:1rem}.shift small{color:var(--mute);font-size:.78rem}
+.shift[aria-checked=true]{background:linear-gradient(135deg,var(--blue),var(--blue-d));border-color:var(--blue-d);color:#fff;box-shadow:0 6px 16px -8px rgba(37,99,235,.7)}
+.shift[aria-checked=true] small{color:#DCE8FF}
+.shift:disabled{opacity:.4;cursor:not-allowed}
+.notebox{margin-top:.8rem;padding:.7rem .9rem;border-radius:12px;background:var(--blue-l);border:1px solid #C7D8FF;color:var(--ink);text-align:left;white-space:pre-wrap;font-size:.9rem}
+.notebox b{display:block;color:var(--blue-d);font-size:.8rem;margin-bottom:.15rem}
+.kbwarn{display:none;margin-top:.35rem;font-size:.8rem;color:#8A1C14;background:#FDECEA;border-radius:6px;padding:.25rem .5rem}
+.pwrow{position:relative}.pwrow .txt{padding-right:3.6rem}
+.pwrow button{position:absolute;right:.4rem;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--accent);font:inherit;font-size:.8rem;cursor:pointer}
+</style>
+</head>
+<body>
+
+<!-- ===== ล็อกอิน (ต้องเข้าทุกครั้งที่เปิดหน้า) ===== -->
+<div class="auth" id="loginView">
+  <form class="card" id="loginForm" autocomplete="on">
+    <h1>ER Crowding Score</h1>
+    <div class="sub">กรุณาเข้าสู่ระบบเพื่อใช้งาน</div>
+    <div class="f"><label for="lgUser">ชื่อผู้ใช้</label><input class="txt" id="lgUser" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required><div class="kbwarn" id="kbUser"></div></div>
+    <div class="f"><label for="lgPass">รหัสผ่าน</label><div class="pwrow"><input class="txt" id="lgPass" type="password" autocomplete="current-password" required>
+      <button type="button" data-show="lgPass">แสดง</button></div><div class="kbwarn" id="kbPass"></div></div>
+    <button class="btn" id="lgBtn" type="submit">เข้าสู่ระบบ</button>
+    <div class="msg" id="lgMsg" role="alert"></div>
+  </form>
+</div>
+
+<!-- ===== เปลี่ยนรหัสผ่าน ===== -->
+<div class="auth" id="pwView" hidden>
+  <form class="card" id="pwForm">
+    <h1>ตั้งรหัสผ่านใหม่</h1>
+    <div class="sub" id="pwSub">กรุณาตั้งรหัสผ่านใหม่ก่อนเริ่มใช้งาน</div>
+    <div class="f"><label for="pwOld">รหัสผ่านเดิม</label><input class="txt" id="pwOld" type="password" autocomplete="current-password" required></div>
+    <div class="f"><label for="pwNew">รหัสผ่านใหม่ (อย่างน้อย 8 ตัว)</label><div class="pwrow"><input class="txt" id="pwNew" type="password" autocomplete="new-password" minlength="8" required>
+      <button type="button" data-show="pwNew">แสดง</button></div></div>
+    <div class="f"><label for="pwNew2">ยืนยันรหัสผ่านใหม่</label><input class="txt" id="pwNew2" type="password" autocomplete="new-password" required></div>
+    <button class="btn" id="pwBtn" type="submit">บันทึกรหัสผ่าน</button>
+    <button class="btn ghost" id="pwCancel" type="button" style="width:100%;margin-top:.5rem">ยกเลิก</button>
+    <div class="msg" id="pwMsg" role="alert"></div>
+  </form>
+</div>
+
+<!-- ===== แอป ===== -->
+<div id="appView" hidden>
+<header>
+  <h1>ER Crowding Score</h1>
+  <nav role="tablist">
+    <button role="tab" data-t="form" aria-selected="true">บันทึกข้อมูล</button>
+    <button role="tab" data-t="dash" aria-selected="false">แดชบอร์ด</button>
+    <button role="tab" data-t="xls" aria-selected="false">ส่งออก Excel</button>
+    <button role="tab" data-t="set" aria-selected="false" id="tabSet" hidden>ตั้งค่า</button>
+  </nav>
+  <div class="who"><span>ผู้ใช้: <b id="whoName"></b> <span id="whoRole"></span></span>
+    <button class="link" id="chpwBtn">เปลี่ยนรหัส</button><button class="link" id="logoutBtn">ออกจากระบบ</button></div>
+</header>
+<main>
+<div id="nourl" class="warn">ยังไม่ได้ตั้งค่า GAS_URL ในไฟล์นี้</div>
+
+<section id="form" class="on">
+  <div class="card">
+    <h2>สถานการณ์ ER (ไม่ต้องใส่ข้อมูลระบุตัวผู้ป่วย)</h2>
+    <div class="grid" style="margin-bottom:.9rem">
+      <div class="f"><label for="shDate">วันที่ / เวร</label>
+        <div class="datewrap">
+          <button type="button" class="dnav" id="dPrev" aria-label="วันก่อนหน้า">‹</button>
+          <button type="button" class="txt datebtn" id="shDateBtn" aria-haspopup="dialog" aria-expanded="false"><span class="ic">📅</span><span id="shDateLbl">–</span></button>
+          <button type="button" class="dnav" id="dNext" aria-label="วันถัดไป">›</button>
+          <button type="button" class="nowbtn" id="nowBtn">เวรปัจจุบัน</button>
+          <input type="hidden" id="shDate">
+          <div class="cal" id="cal" role="dialog" aria-label="เลือกวันที่" hidden></div>
+        </div>
+        <div class="shifts" role="radiogroup" aria-label="เลือกเวร" id="shifts"></div>
+        <small class="hint" id="whenHint">เลือกเวรปัจจุบันให้อัตโนมัติ</small></div>
+      <div class="f"><label for="doctor">แพทย์เวร <span style="color:var(--l2)">*</span></label>
+        <input class="txt" id="doctor" maxlength="60" autocomplete="off" placeholder="เช่น นพ.สมชาย"></div>
+    </div>
+    <div class="f" style="margin-bottom:.9rem"><label for="staff">เจ้าหน้าที่ในเวร (คั่นด้วย ,)</label>
+      <input class="txt" id="staff" maxlength="300" autocomplete="off" placeholder="เช่น พย.สุดา, พย.มานพ, ผช.วิไล"></div>
+    <div class="f" style="margin-bottom:1.1rem"><label>จำนวนผู้ป่วยแยกตามสี (คัดแยก)</label>
+      <div class="tri" id="tri"></div>
+      <div class="trisum"><span>รวมทุกสี: <b id="triTotal">0</b> คน</span><span class="hint">ใช้แยกผู้ป่วยตามสีเท่านั้น</span></div></div>
+    <div class="grid" id="fields"></div>
+    <div class="hint" style="margin-top:.8rem">ผู้บันทึก: <b id="recName"></b> (บันทึกตามผู้ใช้ที่เข้าสู่ระบบ)</div>
+    <div class="band none" id="pvBand"><div><small>สถานะ ER (ตามจำนวนผู้ป่วย)</small><div id="pvLevel">–</div></div><div class="bn" id="pvCount"></div></div>
+    <div class="legend" id="pvLegend"></div>
+    <div class="urgent" id="pvUrgent" role="alert"><span class="ic">🚨</span><div>ต้องการบุคลากรเพิ่ม ด่วน<small>ผู้ป่วยเกินเกณฑ์วิกฤตขั้นสุด — เรียกกำลังเสริมและแจ้งผู้บริหารเวรทันที</small></div></div>
+    <div class="f" style="margin-top:1.1rem"><label for="note">สภาวการณ์ / ข้อมูลเพิ่มเติม</label>
+      <textarea class="txt" id="note" rows="3" maxlength="1000" placeholder="เช่น มีอุบัติเหตุหมู่ รถพยาบาลเข้าพร้อมกัน 3 คัน, เครื่องมือขัดข้อง, รอเตียง ICU" style="resize:vertical;min-height:4.5rem"></textarea>
+      <small class="hint"><span id="noteLen">0</span>/1000 ตัวอักษร · ไม่ต้องใส่ชื่อหรือข้อมูลระบุตัวผู้ป่วย</small></div>
+    <button class="btn" id="save">บันทึกข้อมูล</button>
+    <div class="msg" id="formMsg" role="status"></div>
+  </div>
+</section>
+
+<section id="dash">
+  <div class="card">
+    <div class="gauge" id="gauge">
+      <svg viewBox="0 0 200 110" aria-hidden="true">
+        <path d="M10 100 A90 90 0 0 1 190 100" pathLength="100" fill="none" stroke="var(--line)" stroke-width="16" stroke-linecap="round"/>
+        <path id="arc" d="M10 100 A90 90 0 0 1 190 100" pathLength="100" fill="none" stroke="var(--c,var(--line))" stroke-width="16" stroke-linecap="round" stroke-dasharray="0 100"/>
+      </svg>
+      <div class="gscore" id="gScore">–</div>
+      <div style="color:var(--mute);font-size:.85rem">ผู้ป่วยใน ER (คน)</div>
+    </div>
+    <div class="band none" id="dBand"><div><small>สถานะ ER</small><div id="gLevel">ยังไม่มีข้อมูล</div></div><div class="bn" id="dCount"></div></div>
+    <div class="urgent" id="dUrgent" role="alert"><span class="ic">🚨</span><div>ต้องการบุคลากรเพิ่ม ด่วน<small>สถานะวิกฤตขั้นสุด — เรียกกำลังเสริมและแจ้งผู้บริหารเวรทันที</small></div></div>
+    <div class="advice" id="advice"></div>
+    <div class="stale" id="stale">ข้อมูลเก่า — ยังไม่มีการบันทึกล่าสุด</div>
+    <div style="text-align:center;color:var(--mute);font-size:.85rem;margin-top:.5rem" id="meta"></div>
+    <div class="notebox" id="dNote" hidden><b>สภาวการณ์</b><span id="dNoteTxt"></span></div>
+  </div>
+  <div class="card"><h2>จำนวนผู้ป่วย 24 ชั่วโมงล่าสุด</h2><div class="scroll"><svg id="trend" viewBox="0 0 600 150" width="100%"></svg></div></div>
+  <div class="card"><h2>ผู้ป่วยเฉลี่ยตามวัน×ชั่วโมง (ย้อนหลัง 14 วัน)</h2><div class="scroll"><div class="heat" id="heat"></div></div></div>
+  <div class="card"><h2>บันทึกล่าสุด (20 รายการ)</h2><div class="scroll"><table class="rec" id="recent"></table></div></div>
+  <button class="btn" id="refresh">รีเฟรชข้อมูล</button>
+</section>
+
+<section id="xls">
+  <div class="card">
+    <h2>ส่งออกข้อมูลเป็นไฟล์ Excel (.xlsx)</h2>
+    <div class="quick" id="quick">
+      <button type="button" data-q="0">วันนี้</button><button type="button" data-q="7">7 วัน</button>
+      <button type="button" data-q="30">30 วัน</button><button type="button" data-q="m">เดือนนี้</button><button type="button" data-q="pm">เดือนที่แล้ว</button>
+    </div>
+    <div class="grid">
+      <div class="f"><label for="xFrom">ตั้งแต่วันที่</label><input class="txt" id="xFrom" type="date"></div>
+      <div class="f"><label for="xTo">ถึงวันที่</label><input class="txt" id="xTo" type="date"></div>
+    </div>
+    <div class="hint" style="margin-top:.6rem">ไฟล์มี 3 ชีต: <b>ข้อมูล ER</b> (ทุกรายการ พร้อมเวร แพทย์เวร เจ้าหน้าที่ ผู้บันทึก), <b>สรุปรายเวร</b> (เช้า/บ่าย/ดึก) และ <b>สรุปรายวัน</b> (จำนวนบันทึก ผู้ป่วยเฉลี่ย/สูงสุด/ต่ำสุด และจำนวนครั้งของแต่ละสถานะ) · ส่งออกได้ครั้งละไม่เกิน 1 ปี</div>
+    <button class="btn" id="xBtn">ดาวน์โหลด Excel</button>
+    <div class="msg" id="xMsg" role="status"></div>
+  </div>
+</section>
+
+<section id="set">
+  <div class="card">
+    <h2>ผู้ใช้งาน</h2>
+    <div class="scroll"><table class="rec" id="userTable"></table></div>
+    <h2 style="margin-top:1.2rem" id="uFormTitle">เพิ่มผู้ใช้ใหม่</h2>
+    <div class="cfg">
+      <div class="f"><label for="uName">ชื่อผู้ใช้ (a-z 0-9 . _ -)</label><input class="txt" id="uName" autocapitalize="none" autocomplete="off"></div>
+      <div class="f"><label for="uDisp">ชื่อที่แสดง</label><input class="txt" id="uDisp" autocomplete="off" placeholder="เช่น พย.สุดา"></div>
+      <div class="f"><label for="uRole">บทบาท</label><select class="txt" id="uRole"><option value="staff">เจ้าหน้าที่ (บันทึก/ดู/ส่งออก)</option><option value="admin">ผู้ดูแลระบบ (+ตั้งค่า/จัดการผู้ใช้)</option></select></div>
+      <div class="f"><label for="uPass" id="uPassLab">รหัสผ่านเริ่มต้น (อย่างน้อย 8 ตัว)</label><input class="txt" id="uPass" type="text" autocomplete="off">
+        <small class="hint">ผู้ใช้จะถูกบังคับให้เปลี่ยนรหัสเมื่อเข้าครั้งแรก</small></div>
+      <div class="f"><label><input type="checkbox" id="uActive" checked> เปิดใช้งานบัญชี</label></div>
+    </div>
+    <button class="btn" id="uSave">บันทึกผู้ใช้</button> <button class="btn ghost" id="uNew" hidden>ยกเลิกการแก้ไข</button>
+    <div class="msg" id="uMsg" role="status"></div>
+  </div>
+  <div class="card">
+    <h2>ตั้งค่าเกณฑ์สถานะและการแจ้งเตือน</h2>
+    <div class="cfg" id="cfgForm"></div>
+    <button class="btn" id="saveCfg">บันทึกการตั้งค่า</button>
+    <div class="msg" id="setMsg" role="status"></div>
+  </div>
+</section>
+</main>
+</div>
+
+<script>
+const GAS_URL = ''; // วาง URL ของ Web App (ลงท้ายด้วย /exec)
+
+const FIELDS = [
+  ['patients','ผู้ป่วยใน ER ขณะนี้','คน',0],['beds','เตียง ER ที่ใช้ได้','เตียง',1],
+  ['waiting','รอตรวจ (ยังไม่พบแพทย์)','คน',0],['esi12','ผู้ป่วย ESI 1–2','คน',0],
+  ['boarding','รอ Admit/Refer ค้างใน ER','คน',0],['longWait','เวลารอนานสุด','นาที',0,15],
+  ['vent','ใช้เครื่องช่วยหายใจ/เฝ้าระวังใกล้ชิด','คน',0],['nurses','พยาบาลในเวร','คน',1]
+];
+const LV = ['ปกติ','วิกฤต','วิกฤตรุนแรง','วิกฤตขั้นสุด'];
+const ADV = ['ปฏิบัติงานตามปกติ','เฝ้าระวัง เร่งจำหน่ายเคสที่พร้อม','ประสานเตียงและผู้ช่วยเสริม เตรียมเรียกกำลังเสริม','ต้องการบุคลากรเพิ่ม ด่วน — เรียกกำลังเสริมและแจ้งผู้บริหารเวรทันที'];
+const DEF = {p_crit:51,p_severe:76,p_extreme:101,stale_minutes:120};
+let cfg = Object.assign({}, DEF);
+const $ = id => document.getElementById(id);
+const DAYS = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function say(el, t, ok){ el.className = 'msg ' + (ok ? 'ok' : 'err'); el.textContent = t; }
+const ls = { get(k){ try { return localStorage.getItem(k) || ''; } catch(e){ return ''; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} } };
+
+/* ---------- เซสชัน: เก็บ token ในหน่วยความจำเท่านั้น → ปิด/รีเฟรชหน้า = ต้องล็อกอินใหม่ ---------- */
+let TOKEN = '', ME = null;
+function show(view){ ['loginView','pwView','appView'].forEach(v => $(v).hidden = v !== view); }
+async function api(action, extra){
+  if (!GAS_URL) throw new Error('ยังไม่ได้ตั้งค่า GAS_URL');
+  let r, txt, j;
+  try { r = await fetch(GAS_URL, {method:'POST', body: JSON.stringify(Object.assign({action, token: TOKEN}, extra || {}))}); txt = await r.text(); }
+  catch(e){ throw new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจสอบอินเทอร์เน็ต และ GAS_URL ว่าเป็นลิงก์ Web App ที่ลงท้ายด้วย /exec'); }
+  try { j = JSON.parse(txt); }
+  catch(e){ throw new Error('เซิร์ฟเวอร์ไม่ได้ตอบกลับเป็นข้อมูลของระบบ — ตอน Deploy ต้องตั้ง Who has access เป็น "Anyone" และ Execute as เป็น "Me"'); }
+  if (!j.ok){
+    if (j.error === 'unknown action') throw new Error('เซิร์ฟเวอร์ยังรันโค้ดเวอร์ชันเก่า — ใน Apps Script ไปที่ Deploy → Manage deployments → แก้ไข → Version: New version → Deploy');
+    if (j.error === 'SESSION_EXPIRED'){ logout('หมดเวลาการเข้าใช้งาน กรุณาเข้าสู่ระบบใหม่'); throw new Error('หมดเวลาการเข้าใช้งาน'); }
+    throw new Error(j.error);
+  }
+  return j;
+}
+document.querySelectorAll('[data-show]').forEach(b => b.onclick = () => {
+  const i = $(b.dataset.show); i.type = i.type === 'password' ? 'text' : 'password'; b.textContent = i.type === 'password' ? 'แสดง' : 'ซ่อน';
+});
+/* เตือนเมื่อพิมพ์ด้วยแป้นภาษาไทยหรือเปิด Caps Lock อยู่ (สาเหตุยอดนิยมที่ล็อกอินไม่ได้) */
+function kbCheck(inp, box, e){
+  const thai = /[\u0E00-\u0E7F]/.test(inp.value), caps = e && e.getModifierState && e.getModifierState('CapsLock');
+  const t = thai ? 'แป้นพิมพ์เป็นภาษาไทยอยู่ — กด ~ หรือสลับเป็นภาษาอังกฤษ แล้วพิมพ์ใหม่' : caps ? 'Caps Lock เปิดอยู่ — รหัสผ่านแยกตัวพิมพ์เล็ก/ใหญ่' : '';
+  $(box).textContent = t; $(box).style.display = t ? 'block' : 'none';
+}
+[['lgUser','kbUser'],['lgPass','kbPass']].forEach(([i,b]) => ['input','keyup'].forEach(ev => $(i).addEventListener(ev, e => kbCheck($(i), b, e))));
+$('loginForm').onsubmit = async e => {
+  e.preventDefault();
+  if (/[\u0E00-\u0E7F]/.test($('lgUser').value + $('lgPass').value)) return say($('lgMsg'), 'ชื่อผู้ใช้/รหัสผ่านมีตัวอักษรภาษาไทย — สลับแป้นพิมพ์เป็นภาษาอังกฤษแล้วพิมพ์ใหม่', false);
+  $('lgBtn').disabled = true; $('lgMsg').className = 'msg';
+  try {
+    const j = await api('login', {username: $('lgUser').value.trim(), password: $('lgPass').value});
+    TOKEN = j.token; ME = j.user; $('lgPass').value = '';
+    if (ME.mustChange) openPw(true); else enterApp();
+  } catch(err){ say($('lgMsg'), err.message, false); }
+  $('lgBtn').disabled = false;
+};
+function openPw(forced){
+  $('pwForm').reset(); $('pwMsg').className = 'msg';
+  $('pwSub').textContent = forced ? 'กรุณาตั้งรหัสผ่านใหม่ก่อนเริ่มใช้งาน' : 'เปลี่ยนรหัสผ่านของ ' + ME.name;
+  $('pwCancel').textContent = forced ? 'ออกจากระบบ' : 'ยกเลิก';
+  $('pwCancel').onclick = () => forced ? logout() : show('appView');
+  show('pwView'); $('pwOld').focus();
+}
+$('pwForm').onsubmit = async e => {
+  e.preventDefault();
+  if ($('pwNew').value !== $('pwNew2').value) return say($('pwMsg'), 'รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน', false);
+  $('pwBtn').disabled = true;
+  try {
+    const j = await api('changePassword', {oldPassword: $('pwOld').value, newPassword: $('pwNew').value});
+    ME = j.user; $('pwForm').reset(); enterApp(); say($('formMsg'), 'เปลี่ยนรหัสผ่านเรียบร้อย', true);
+  } catch(err){ say($('pwMsg'), err.message, false); }
+  $('pwBtn').disabled = false;
+};
+$('chpwBtn').onclick = () => openPw(false);
+$('logoutBtn').onclick = () => logout();
+function logout(msg){
+  if (TOKEN && GAS_URL) fetch(GAS_URL, {method:'POST', body: JSON.stringify({action:'logout', token: TOKEN})}).catch(() => {});
+  TOKEN = ''; ME = null; $('lgPass').value = '';
+  show('loginView'); $('lgMsg').className = 'msg'; if (msg) say($('lgMsg'), msg, false);
+  setTimeout(() => ($('lgUser').value ? $('lgPass') : $('lgUser')).focus(), 50);
+}
+function enterApp(){
+  show('appView');
+  $('whoName').textContent = ME.name; $('whoRole').textContent = ME.role === 'admin' ? '(ผู้ดูแล)' : '';
+  $('recName').textContent = ME.name + ' (' + ME.username + ')';
+  $('tabSet').hidden = ME.role !== 'admin';
+  tab('form'); setNow(); preview();
+  api('dashboard').then(j => { cfg = Object.assign({}, DEF, j.cfg); preview(); }).catch(() => {});
+}
+
+/* ---------- แท็บ ---------- */
+function tab(t){
+  document.querySelectorAll('nav button').forEach(x => x.setAttribute('aria-selected', x.dataset.t === t));
+  document.querySelectorAll('section').forEach(s => s.classList.toggle('on', s.id === t));
+  if (t === 'dash') loadDash();
+  if (t === 'set') loadSettings();
+}
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => tab(b.dataset.t));
+if (!GAS_URL) $('nourl').style.display = 'block';
+
+/* ---------- คำนวณ ---------- */
+/* สถานะตามจำนวนผู้ป่วย (ค่าเริ่มต้น): 1–50 ปกติ · 51–75 วิกฤต · 76–100 วิกฤตรุนแรง · 101+ วิกฤตขั้นสุด */
+const lvl = (p, c) => p >= c.p_extreme ? 3 : p >= c.p_severe ? 2 : p >= c.p_crit ? 1 : 0;
+function legend(){ const r = [`0–${cfg.p_crit-1}`, `${cfg.p_crit}–${cfg.p_severe-1}`, `${cfg.p_severe}–${cfg.p_extreme-1}`, `${cfg.p_extreme}+`];
+  $('pvLegend').innerHTML = LV.map((n,i) => `<span class="l${i}"><i></i>${n} ${r[i]} คน</span>`).join(''); }
+function setBand(el, l, n){ el.className = 'band' + (l === null ? ' none' : ' l'+l); }
+
+/* ---------- ฟอร์ม ---------- */
+$('fields').innerHTML = FIELDS.map(([k,l,u,min,st]) =>
+ `<div class="f"><label for="f_${k}">${l}</label><div class="step">
+ <button type="button" data-k="${k}" data-d="-${st||1}" aria-label="ลด ${l}">−</button>
+ <input id="f_${k}" type="number" inputmode="numeric" min="${min}" value="${min}">
+ <button type="button" data-k="${k}" data-d="${st||1}" aria-label="เพิ่ม ${l}">+</button>
+ <span class="unit">${u}</span></div></div>`).join('');
+/* ปุ่ม + / − : แตะ = ทีละ 1, กดค้าง = เพิ่ม/ลดต่อเนื่อง (รองรับเมาส์และนิ้ว) */
+function stepper(btn, input, onChange){
+  let t1, t2, moved = false;
+  const once = () => { const mn = Number(input.min) || 0; input.value = Math.max(mn, (Number(input.value) || 0) + Number(btn.dataset.d)); onChange(); };
+  const stop = () => { clearTimeout(t1); clearInterval(t2); };
+  btn.addEventListener('pointerdown', e => { if (e.button > 0) return; e.preventDefault(); moved = true; once();
+    t1 = setTimeout(() => { t2 = setInterval(once, 90); }, 450); });
+  ['pointerup','pointerleave','pointercancel','blur'].forEach(ev => btn.addEventListener(ev, stop));
+  btn.addEventListener('click', e => { if (moved){ moved = false; return; } once(); }); // แป้นพิมพ์ (Enter/Space)
+  btn.addEventListener('contextmenu', e => e.preventDefault());
+}
+document.querySelectorAll('#fields button[data-k]').forEach(b => stepper(b, $('f_'+b.dataset.k), preview));
+$('fields').oninput = preview;
+/* ---------- เวร: เช้า 08:30–16:30 · บ่าย 16:30–00:30 · ดึก 00:30–08:30 (เวลาไทย) ---------- */
+const SH = {morning:{name:'เวรเช้า',time:'08:30–16:30',off:8}, afternoon:{name:'เวรบ่าย',time:'16:30–00:30',off:16}, night:{name:'เวรดึก',time:'00:30–08:30',off:0}};
+const SH_ORDER = ['morning','afternoon','night'];
+const bkk = t => { const p = {}; new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23'})
+  .formatToParts(new Date(t)).forEach(x => p[x.type] = x.value); return {date:`${p.year}-${p.month}-${p.day}`, hour:Number(p.hour)}; };
+function shiftOf(t){ const b = bkk(t - 18e5); return {date:b.date, key: b.hour < 8 ? 'night' : b.hour < 16 ? 'morning' : 'afternoon'}; }
+const shiftStart = (date, key) => Date.parse(date + 'T00:30:00+07:00') + SH[key].off * 36e5;
+const thDate = d => new Date(d + 'T12:00:00+07:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Bangkok'});
+let selShift = 'morning', shiftTouched = false;
+$('shifts').innerHTML = SH_ORDER.map(k => `<button type="button" class="shift" role="radio" aria-checked="false" data-s="${k}"><b>${SH[k].name}</b><small>${SH[k].time} น.</small></button>`).join('');
+function drawShifts(){
+  const now = Date.now(), date = $('shDate').value, st = shiftStart(date, selShift);
+  document.querySelectorAll('#shifts .shift').forEach(b => b.setAttribute('aria-checked', b.dataset.s === selShift));
+  $('whenHint').textContent = now >= st && now < st + 8 * 36e5 ? 'เวรปัจจุบัน — บันทึกตามเวลาที่กด'
+    : (st > now ? 'บันทึกล่วงหน้า: ' : 'บันทึกย้อนหลัง: ') + `${SH[selShift].name} ${thDate(date)} (เวลา ${SH[selShift].time} น.)`;
+}
+/* ---------- วันที่: ปุ่ม + ปฏิทินให้แตะเลือก (ย้อนหลังได้ทุกวัน ล่วงหน้าได้ถึงพรุ่งนี้) ---------- */
+const addDays = (d, n) => bkk(Date.parse(d + 'T12:00:00+07:00') + n * 864e5).date;
+const dRange = () => { const cur = shiftOf(Date.now()).date; return {min: '2000-01-01', max: addDays(cur, 1), today: cur}; };
+const MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+let calMonth = '';
+function setDate(d, touched){
+  const r = dRange(); if (d < r.min) d = r.min; if (d > r.max) d = r.max;
+  $('shDate').value = d; if (touched) shiftTouched = true;
+  const rel = d === r.today ? 'วันนี้' : d === addDays(r.today, 1) ? 'พรุ่งนี้' : d === addDays(r.today, -1) ? 'เมื่อวาน' : 'ย้อนหลัง';
+  const dt = new Date(d + 'T12:00:00+07:00');
+  $('shDateLbl').innerHTML = `<small>${rel}</small><span>${DAYS[dt.getUTCDay()]}. ${dt.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Bangkok'})}</span>`;
+  $('dPrev').disabled = d <= r.min; $('dNext').disabled = d >= r.max;
+  drawShifts(); if (!$('cal').hidden) drawCal();
+}
+function drawCal(){
+  const r = dRange(), sel = $('shDate').value, [y, m] = calMonth.split('-').map(Number);
+  const first = new Date(Date.UTC(y, m - 1, 1)).getUTCDay(), days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const ym = (yy, mm) => `${yy}-${String(mm).padStart(2,'0')}`, prev = m === 1 ? ym(y-1, 12) : ym(y, m-1), next = m === 12 ? ym(y+1, 1) : ym(y, m+1);
+  const py = ym(y-1, m), ny = ym(y+1, m) > r.max.slice(0,7) ? r.max.slice(0,7) : ym(y+1, m);
+  let h = `<div class="ch"><span class="cb"><button type="button" data-m="${py}" aria-label="ปีก่อน">«</button><button type="button" data-m="${prev}" aria-label="เดือนก่อน">‹</button></span>`
+    + `<span>${MONTHS[m-1]} ${y + 543}</span><span class="cb"><button type="button" data-m="${next}" ${next > r.max.slice(0,7) ? 'disabled' : ''} aria-label="เดือนถัดไป">›</button>`
+    + `<button type="button" data-m="${ny}" ${ym(y, m) >= r.max.slice(0,7) ? 'disabled' : ''} aria-label="ปีถัดไป">»</button></span></div><div class="cg">`
+    + DAYS.map(x => `<div class="wd">${x}</div>`).join('') + '<div></div>'.repeat(first);
+  for (let i = 1; i <= days; i++){ const d = `${ym(y, m)}-${String(i).padStart(2,'0')}`;
+    h += `<button type="button" class="d${d === sel ? ' sel' : ''}${d === r.today ? ' today' : ''}" data-d="${d}" ${d < r.min || d > r.max ? 'disabled' : ''}>${i}</button>`; }
+  h += `</div><div class="cf"><button type="button" data-d="${addDays(r.today,-1)}">เมื่อวาน</button><button type="button" data-d="${r.today}">วันนี้</button><button type="button" data-d="${r.max}">พรุ่งนี้</button></div>
+    <div class="note">ย้อนหลังได้ทุกวัน · ‹ › เปลี่ยนเดือน · « » เปลี่ยนปี · ล่วงหน้าได้ถึงพรุ่งนี้</div>`;
+  $('cal').innerHTML = h;
+}
+function openCal(open){ $('cal').hidden = !open; $('shDateBtn').setAttribute('aria-expanded', open); if (open){ calMonth = $('shDate').value.slice(0,7); drawCal(); } }
+$('shDateBtn').onclick = () => openCal($('cal').hidden);
+$('cal').onclick = e => { const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.m){ calMonth = b.dataset.m; drawCal(); return; }
+  if (b.dataset.d){ setDate(b.dataset.d, true); openCal(false); $('shDateBtn').focus(); } };
+document.addEventListener('click', e => { if (!$('cal').hidden && e.target.isConnected && !e.target.closest('.datewrap')) openCal(false); }); // ปุ่มที่ถูกวาดใหม่ (เปลี่ยนเดือน) ไม่นับเป็นการแตะนอกปฏิทิน
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('cal').hidden){ openCal(false); $('shDateBtn').focus(); } });
+$('dPrev').onclick = () => setDate(addDays($('shDate').value, -1), true);
+$('dNext').onclick = () => setDate(addDays($('shDate').value, 1), true);
+function setNow(){ const c = shiftOf(Date.now()); shiftTouched = false; selShift = c.key; setDate(c.date); }
+$('shifts').onclick = e => { const b = e.target.closest('.shift'); if (!b) return; selShift = b.dataset.s; shiftTouched = true; drawShifts(); };
+$('note').oninput = () => $('noteLen').textContent = $('note').value.length;
+$('nowBtn').onclick = setNow;
+setInterval(() => { if (!shiftTouched) setNow(); else drawShifts(); }, 30000);
+const pad = n => String(n).padStart(2,'0');
+const localStr = t => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const dateStr = t => localStr(t).slice(0,10);
+/* ---------- จำนวนผู้ป่วยแยกสี ---------- */
+const TRI = [['black','สีดำ'],['red','สีแดง'],['yellow','สีเหลือง'],['green','สีเขียว']];
+$('tri').innerHTML = TRI.map(([k,l]) => `<div class="tile t-${k}"><div class="tl">${l}</div>
+  <input id="t_${k}" type="number" inputmode="numeric" min="0" value="0" aria-label="จำนวนผู้ป่วย${l}">
+  <div class="tb"><button type="button" data-t="${k}" data-d="-1" aria-label="ลด${l}">−</button><button type="button" data-t="${k}" data-d="1" aria-label="เพิ่ม${l}">+</button></div></div>`).join('');
+const triVals = () => { const o = {}; TRI.forEach(([k]) => o[k] = Math.max(0, Math.floor(Number($('t_'+k).value) || 0))); return o; };
+function triChanged(){
+  const t = triVals(), sum = Object.values(t).reduce((a,b) => a+b, 0);
+  $('triTotal').textContent = sum; // แยกสีเท่านั้น ไม่เปลี่ยนจำนวนผู้ป่วยหรือสถานะ
+}
+document.querySelectorAll('#tri button[data-t]').forEach(b => stepper(b, $('t_'+b.dataset.t), triChanged));
+$('tri').oninput = triChanged;
+const miniTri = t => t ? `<span class="mini">${TRI.map(([k,l]) => `<span class="t-${k}" title="${l}">${t[k] ?? 0}</span>`).join('')}</span>` : '';
+function vals(){ const d = {}; FIELDS.forEach(([k]) => d[k] = Number($('f_'+k).value)); d.triage = triVals();
+  d.doctor = $('doctor').value.trim(); d.staff = $('staff').value.trim();
+  d.shiftDate = $('shDate').value; d.shift = selShift; d.note = $('note').value.trim(); return d; }
+function preview(){
+  const d = vals();
+  legend();
+  if (FIELDS.some(([k]) => isNaN(d[k]) || d[k] < 0)){
+    setBand($('pvBand'), null); $('pvLevel').textContent = '–'; $('pvCount').textContent = ''; $('pvUrgent').classList.remove('on'); return; }
+  const l = lvl(d.patients, cfg);
+  setBand($('pvBand'), l); $('pvLevel').textContent = LV[l]; $('pvCount').textContent = d.patients + ' คน';
+  $('pvUrgent').classList.toggle('on', l === 3);
+}
+$('doctor').value = ls.get('erDoctor'); $('staff').value = ls.get('erStaff');
+$('save').onclick = async () => {
+  const d = vals(), m = $('formMsg');
+  if (!d.shiftDate) return say(m, 'กรุณาเลือกวันที่และเวร', false);
+  if (!d.doctor) { $('doctor').focus(); return say(m, 'กรุณาระบุชื่อแพทย์เวร', false); }
+  if (d.beds < 1 || d.nurses < 1) return say(m, 'เตียงและพยาบาลต้องไม่น้อยกว่า 1', false);
+  $('save').disabled = true;
+  try {
+    const r = await api('submit', {data: d});
+    ls.set('erDoctor', d.doctor); ls.set('erStaff', d.staff); $('note').value = ''; $('noteLen').textContent = 0;
+    say(m, `บันทึกแล้ว: ${SH[r.shift].name} ${thDate(r.shiftDate)} · สถานะ ${r.levelName} · ผู้ป่วย ${r.patients} คน` + (r.needStaff ? ' — ต้องการบุคลากรเพิ่ม ด่วน' : ''), !r.needStaff);
+    setNow();
+  } catch(e){ say(m, 'บันทึกไม่สำเร็จ: ' + e.message, false); }
+  $('save').disabled = false;
+};
+
+/* ---------- แดชบอร์ด ---------- */
+async function loadDash(){
+  try {
+    const j = await api('dashboard'); cfg = Object.assign({}, DEF, j.cfg); preview();
+    const L = j.latest;
+    if (L){
+      $('gauge').className = 'gauge l'+L.level;
+      const full = Math.max(cfg.p_extreme * 1.2, L.patients); // หน้าปัด: 0 → 120% ของเกณฑ์วิกฤตขั้นสุด
+      $('arc').setAttribute('stroke-dasharray', Math.round(L.patients / full * 100) + ' 100');
+      $('gScore').textContent = L.patients;
+      $('dUrgent').classList.toggle('on', L.level === 3);
+      $('dNote').hidden = !L.note; $('dNoteTxt').textContent = L.note || '';
+      setBand($('dBand'), L.level); $('dCount').textContent = L.patients + ' คน';
+      $('gLevel').textContent = LV[L.level];
+      $('advice').textContent = L.level === 3 ? '' : ADV[L.level];
+      $('meta').innerHTML = `ผู้ป่วย ${L.patients}/${L.beds} เตียง · รอตรวจ ${L.waiting} · ESI 1–2: ${L.esi12} · พยาบาล ${L.nurses}`
+        + `<br><b>${SH[L.shift].name}</b> (${SH[L.shift].time} น.) ${thDate(L.shiftDate)} · บันทึกเวลา ${esc(L.time.slice(11))} น.`
+        + `<br>แพทย์เวร: <b>${esc(L.doctor || '–')}</b> · เจ้าหน้าที่: ${esc(L.staff || '–')}`
+        + `<div style="margin-top:.5rem">ผู้ป่วยแยกสี (ดำ · แดง · เหลือง · เขียว) ${miniTri(L.triage)}</div>`;
+      $('stale').style.display = (j.now - L.epoch) / 60000 > cfg.stale_minutes ? 'block' : 'none';
+    }
+    drawTrend(j.series, j.now); drawHeat(j.heat); drawRecent(j.recent || []);
+  } catch(e){ $('meta').textContent = 'โหลดไม่สำเร็จ: ' + e.message; }
+}
+$('refresh').onclick = loadDash;
+const COL = ['--l0','--l1','--l2','--l3'];
+const cv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function drawTrend(sr, now){
+  const W = 600, H = 150, p = 28, t0 = now - 864e5;
+  const top = Math.max(cfg.p_extreme * 1.25, ...sr.map(r => r[1]), 10);
+  const x = t => p + (t - t0) / 864e5 * (W - p - 20), y = s => H - 20 - s / top * (H - 34);
+  let g = '';
+  [[cfg.p_crit,1],[cfg.p_severe,2],[cfg.p_extreme,3]].forEach(([v,l]) => g += `<line x1="${p}" x2="${W-20}" y1="${y(v)}" y2="${y(v)}" stroke="${cv(COL[l])}" stroke-dasharray="4 4" opacity=".7"/><text x="2" y="${y(v)+3}" font-size="9" fill="${cv(COL[l])}">${v}</text>`);
+  for (let h = 0; h <= 24; h += 6){ const t = t0 + h*36e5; g += `<text x="${x(t)}" y="${H-4}" font-size="9" text-anchor="middle" fill="${cv('--mute')}">${new Date(t).getHours()}:00</text>`; }
+  if (sr.length){
+    g += `<polyline fill="none" stroke="${cv('--blue')}" stroke-width="2.2" points="${sr.map(r => x(r[0])+','+y(r[1])).join(' ')}"/>`;
+    sr.forEach(r => g += `<circle cx="${x(r[0])}" cy="${y(r[1])}" r="3.5" fill="${cv(COL[r[2]])}"/>`);
+  } else g += `<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="${cv('--mute')}">ยังไม่มีข้อมูลใน 24 ชั่วโมงล่าสุด</text>`;
+  $('trend').innerHTML = g;
+}
+function drawHeat(h){
+  let s = '<div class="lab"></div>';
+  for (let i = 0; i < 24; i++) s += `<div class="lab" style="justify-content:center">${i%3===0?i:''}</div>`;
+  h.forEach((row, d) => {
+    s += `<div class="lab">${DAYS[d]}</div>`;
+    row.forEach(v => {
+      if (v === null) s += `<div style="background:var(--line);opacity:.5"></div>`;
+      else s += `<div title="${DAYS[d]} เฉลี่ย ${v} คน" style="background:${cv(COL[lvl(v, cfg)])};opacity:${.3 + Math.min(v / cfg.p_extreme, 1) * .6}"></div>`;
+    });
+  });
+  $('heat').innerHTML = s;
+}
+function drawRecent(rows){
+  if (!rows.length){ $('recent').innerHTML = '<tr><td style="color:var(--mute)">ยังไม่มีข้อมูล</td></tr>'; return; }
+  $('recent').innerHTML = '<tr><th>วันที่ / เวร</th><th>สถานะ</th><th>ผู้ป่วย/เตียง</th><th>แยกสี</th><th>แพทย์เวร</th><th>เจ้าหน้าที่ในเวร</th><th>สภาวการณ์</th><th>ผู้บันทึก</th></tr>' +
+    rows.map(r => `<tr><td style="white-space:nowrap">${thDate(r.shiftDate)} · <b>${SH[r.shift].name}</b><br><small style="color:var(--mute)">บันทึก ${esc(r.time.slice(11))} น.</small></td>
+      <td><span class="chip l${r.level}" style="padding:0 .6rem;font-size:.8rem;white-space:nowrap">${LV[r.level]}</span></td>
+      <td class="n">${r.patients}/${r.beds}</td><td style="white-space:nowrap">${miniTri(r.triage)}</td><td>${esc(r.doctor || '–')}</td><td>${esc(r.staff || '–')}</td><td style="min-width:12rem;white-space:pre-wrap">${esc(r.note || '–')}</td><td>${esc(r.recorder || '')}</td></tr>`).join('');
+}
+
+/* ---------- ส่งออก Excel ---------- */
+function setRange(q){
+  const now = new Date(); let a = new Date(now), b = new Date(now);
+  if (q === 'm') a = new Date(now.getFullYear(), now.getMonth(), 1);
+  else if (q === 'pm'){ a = new Date(now.getFullYear(), now.getMonth()-1, 1); b = new Date(now.getFullYear(), now.getMonth(), 0); }
+  else a.setDate(a.getDate() - Number(q) + (Number(q) ? 1 : 0));
+  $('xFrom').value = dateStr(a); $('xTo').value = dateStr(b);
+}
+$('quick').onclick = e => { const b = e.target.closest('button[data-q]'); if (b) setRange(b.dataset.q); };
+setRange('7');
+$('xBtn').onclick = async () => {
+  const m = $('xMsg');
+  if (!$('xFrom').value || !$('xTo').value) return say(m, 'กรุณาเลือกช่วงวันที่', false);
+  // ตามวันที่เวร: ตั้งแต่เวรดึก 00:30 ของวันแรก ถึงจบเวรบ่าย 00:30 ของวันถัดจากวันสุดท้าย
+  const from = shiftStart($('xFrom').value, 'night'), to = shiftStart($('xTo').value, 'afternoon') + 8 * 36e5 - 1;
+  if (from > to) return say(m, 'วันที่เริ่มต้องไม่หลังวันที่สิ้นสุด', false);
+  if (typeof XLSX === 'undefined') return say(m, 'โหลดตัวสร้างไฟล์ Excel ไม่สำเร็จ — ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่', false);
+  $('xBtn').disabled = true; say(m, 'กำลังเตรียมไฟล์…', true);
+  try {
+    const j = await api('export', {from, to});
+    if (!j.rows.length){ say(m, 'ไม่มีข้อมูลในช่วงวันที่ที่เลือก', false); $('xBtn').disabled = false; return; }
+    const name = `ER_Crowding_${$('xFrom').value.replace(/-/g,'')}-${$('xTo').value.replace(/-/g,'')}.xlsx`;
+    XLSX.writeFile(buildBook(j.rows), name, {compression: true});
+    say(m, `ดาวน์โหลดแล้ว: ${name} (${j.rows.length} รายการ)`, true);
+  } catch(e){ say(m, 'ส่งออกไม่สำเร็จ: ' + e.message, false); }
+  $('xBtn').disabled = false;
+};
+function buildBook(rows){
+  const head = ['วันที่เวร','เวร','เวลาบันทึก','สถานะ','ผู้ป่วยใน ER','เตียงที่ใช้ได้','รอตรวจ','ESI 1-2','รอ Admit/Refer','รอนานสุด (นาที)','ใช้เครื่องช่วยหายใจ','พยาบาลในเวร','สีดำ','สีแดง','สีเหลือง','สีเขียว','แพทย์เวร','เจ้าหน้าที่ในเวร','สภาวการณ์','ผู้บันทึก','บันทึกเข้าระบบเมื่อ'];
+  const data = rows.map(r => [r.shiftDate, SH[r.shift].name + ' (' + SH[r.shift].time + ')', r.time, LV[r.level], r.patients, r.beds, r.waiting, r.esi12, r.boarding, r.longWait, r.vent, r.nurses, r.triage.black, r.triage.red, r.triage.yellow, r.triage.green, r.doctor, r.staff, r.note, r.recorder, r.savedAt]);
+  const ws = XLSX.utils.aoa_to_sheet([head].concat(data));
+  ws['!cols'] = [12,20,17,13,10,10,8,8,13,13,15,11,7,7,8,8,18,30,45,24,19].map(w => ({wch: w}));
+  ws['!autofilter'] = {ref: XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:data.length, c:head.length-1}})};
+  // สรุปรายวัน
+  const by = {};
+  rows.forEach(r => { const d = r.shiftDate; (by[d] = by[d] || []).push(r); });
+  const sHead = ['วันที่','จำนวนบันทึก','ผู้ป่วยเฉลี่ย','ผู้ป่วยสูงสุด','ผู้ป่วยต่ำสุด','ครั้งที่สถานะ วิกฤต ขึ้นไป','ครั้งที่ วิกฤตรุนแรง ขึ้นไป','ครั้งที่ วิกฤตขั้นสุด','แพทย์เวร','สีดำสูงสุด','สีแดงสูงสุด','สีเหลืองสูงสุด','สีเขียวสูงสุด'];
+  const sData = Object.keys(by).sort().map(d => { const a = by[d], sc = a.map(r => Number(r.patients) || 0);
+    return [d, a.length, Math.round(sc.reduce((x,y) => x+y, 0) / a.length * 10) / 10, Math.max(...sc), Math.min(...sc),
+      a.filter(r => r.level >= 1).length, a.filter(r => r.level >= 2).length, a.filter(r => r.level === 3).length,
+      [...new Set(a.map(r => r.doctor).filter(Boolean))].join(', '),
+      ...TRI.map(([k]) => Math.max(...a.map(r => r.triage[k] || 0)))]; });
+  const ws2 = XLSX.utils.aoa_to_sheet([sHead].concat(sData));
+  ws2['!cols'] = [12,12,12,12,12,20,22,18,36,11,11,13,12].map(w => ({wch: w}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'ข้อมูล ER');
+  XLSX.utils.book_append_sheet(wb, ws2, 'สรุปรายวัน');
+  // สรุปรายเวร
+  const bs = {};
+  rows.forEach(r => { const k = r.shiftDate + '|' + r.shift; (bs[k] = bs[k] || []).push(r); });
+  const s3 = [['วันที่เวร','เวร','เวลา','จำนวนบันทึก','ผู้ป่วยสูงสุด','ผู้ป่วยเฉลี่ย','สถานะสูงสุด','สีดำสูงสุด','สีแดงสูงสุด','สีเหลืองสูงสุด','สีเขียวสูงสุด','แพทย์เวร','เจ้าหน้าที่ในเวร','สภาวการณ์']]
+    .concat(Object.keys(bs).sort((a,b) => { const [da,ka] = a.split('|'), [db,kb] = b.split('|'); return da === db ? SH[ka].off - SH[kb].off : da < db ? -1 : 1; }).map(k => {
+      const a = bs[k], [d, sk] = k.split('|'), pt = a.map(r => Number(r.patients) || 0);
+      return [d, SH[sk].name, SH[sk].time, a.length, Math.max(...pt), Math.round(pt.reduce((x,y) => x+y, 0) / a.length * 10) / 10, LV[Math.max(...a.map(r => r.level))],
+        ...TRI.map(([t]) => Math.max(...a.map(r => r.triage[t] || 0))),
+        [...new Set(a.map(r => r.doctor).filter(Boolean))].join(', '), [...new Set(a.flatMap(r => String(r.staff || '').split(/\s*,\s*/)).filter(Boolean))].join(', '),
+        a.filter(r => r.note).map(r => r.time.slice(11) + ' ' + r.note).join(' | ')]; }));
+  const ws3 = XLSX.utils.aoa_to_sheet(s3);
+  ws3['!cols'] = [12,9,13,12,13,13,14,11,11,13,12,30,40,60].map(w => ({wch: w}));
+  XLSX.utils.book_append_sheet(wb, ws3, 'สรุปรายเวร');
+  wb.Props = {Title: 'ER Crowding Score', Author: ME ? ME.name : ''};
+  return wb;
+}
+
+/* ---------- ตั้งค่า (เฉพาะผู้ดูแล) ---------- */
+const CL = {p_crit:'แถบเหลือง วิกฤต เมื่อผู้ป่วยตั้งแต่ (คน)',p_severe:'แถบชมพู วิกฤตรุนแรง เมื่อผู้ป่วยตั้งแต่ (คน)',p_extreme:'แถบแดง วิกฤตขั้นสุด + แจ้ง "ต้องการบุคลากรเพิ่ม ด่วน" ตั้งแต่ (คน)',alert_status:'ส่งอีเมลเมื่อสถานะถึง (1=วิกฤต 2=วิกฤตรุนแรง 3=วิกฤตขั้นสุด)',
+ alert_emails:'อีเมลรับแจ้งเตือน (คั่นด้วย ,)',webhook_url:'Webhook URL (ไม่บังคับ)',stale_minutes:'แสดง "ข้อมูลเก่า" เมื่อเกิน (นาที)'};
+let USERS = [];
+async function loadSettings(){
+  try {
+    const [c, u] = await Promise.all([api('getConfig'), api('listUsers')]);
+    $('cfgForm').innerHTML = Object.keys(CL).map(k => `<div class="f"><label for="c_${k}">${CL[k]}</label><input class="txt" id="c_${k}" value="${esc(c.cfg[k] ?? '')}"></div>`).join('');
+    drawUsers(u.users);
+  } catch(e){ say($('setMsg'), e.message, false); }
+}
+function drawUsers(list){
+  USERS = list;
+  $('userTable').innerHTML = '<tr><th>ชื่อผู้ใช้</th><th>ชื่อที่แสดง</th><th>บทบาท</th><th>สถานะ</th><th>เข้าระบบล่าสุด</th><th></th></tr>' +
+    list.map((u, i) => `<tr><td>${esc(u.username)}</td><td>${esc(u.name)}</td><td>${u.role === 'admin' ? 'ผู้ดูแล' : 'เจ้าหน้าที่'}</td>
+      <td>${u.active ? 'ใช้งาน' : '<span style="color:var(--l2)">ปิดใช้งาน</span>'}</td><td>${esc(u.lastLogin || '–')}</td>
+      <td><button class="link" data-edit="${i}">แก้ไข</button></td></tr>`).join('');
+}
+function userForm(u){
+  $('uName').value = u ? u.username : ''; $('uName').disabled = !!u;
+  $('uDisp').value = u ? u.name : ''; $('uRole').value = u ? u.role : 'staff'; $('uActive').checked = u ? u.active : true; $('uPass').value = '';
+  $('uFormTitle').textContent = u ? 'แก้ไขผู้ใช้: ' + u.username : 'เพิ่มผู้ใช้ใหม่';
+  $('uPassLab').textContent = u ? 'รีเซ็ตรหัสผ่าน (เว้นว่าง = ไม่เปลี่ยน)' : 'รหัสผ่านเริ่มต้น (อย่างน้อย 8 ตัว)';
+  $('uNew').hidden = !u;
+}
+$('userTable').onclick = e => { const b = e.target.closest('[data-edit]'); if (b){ userForm(USERS[+b.dataset.edit]); $('uDisp').focus(); } };
+$('uNew').onclick = () => userForm(null);
+$('uSave').onclick = async () => {
+  const user = {username: $('uName').value.trim(), name: $('uDisp').value.trim(), role: $('uRole').value, active: $('uActive').checked, password: $('uPass').value};
+  $('uSave').disabled = true;
+  try { const j = await api('saveUser', {user}); drawUsers(j.users); say($('uMsg'), 'บันทึกผู้ใช้ ' + user.username + ' แล้ว', true); userForm(null); }
+  catch(e){ say($('uMsg'), e.message, false); }
+  $('uSave').disabled = false;
+};
+$('saveCfg').onclick = async () => {
+  const v = {}; Object.keys(CL).forEach(k => v[k] = $('c_'+k).value);
+  try { await api('saveConfig', {values: v}); say($('setMsg'), 'บันทึกการตั้งค่าแล้ว', true); }
+  catch(e){ say($('setMsg'), 'บันทึกไม่สำเร็จ: ' + e.message, false); }
+};
+
+show('loginView'); $('lgUser').focus();
+</script>
+</body>
+</html>
